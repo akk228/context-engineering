@@ -211,3 +211,23 @@ What could be the need for escalation
 -   agent wants to reconsider approach (also an impass?)
 
 Are there any other cases where escalation to a human make sense?
+
+### 6. Error handling
+
+Agent must understand what it would do in case it encounters errors. It might be command execution error or tooling without access.
+
+Q:  Do we consider the wrong output as an error? Meaning if the result didn't produce desired outcome
+A:  I belive not. It is just a part of instructions to achieve the goal (Or not?)
+
+### 7. Fallback mechanism
+
+-   Fallback tooling
+-   Request to a human
+
+### 8. Verification
+
+We want agent to be able to test the results of its own work.
+
+-   Apply tools, like run tests, checkers, commands with predictable output.
+-   Adversarial prompting: creating reviewer subagents that would challenge the output.
+-   Reflection. The agent should be instructed in such a way that it would recognize its own failure in achieving the desired outocme. E.g. if it runs into an error, it shouldn't attempt to fix at expense of deviating from the given instructions. The outcome of failure msut be acknowledgment of failure, and either requesting user to reconsider the approach, or explain why the desiarable goal can not be achieved.
