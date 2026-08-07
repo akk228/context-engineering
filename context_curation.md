@@ -61,7 +61,9 @@ Below one may find a list of what I would call a prompt constitution. However, o
 1.  Require clear declaration.
 2.  Must always be a part of the main context.
 
-#### Techniques**
+<details><summary>Techniques</summary>
+
+[WARNING]: maybe the stuff below shouldn't be here, maybe it's better to include it in a separate part on agent orchestration techinques.
 
 How to adress the main goal that you are instructing an agent to?
 
@@ -79,7 +81,7 @@ We have the main agent that is an orchestrator. It
 
 *   Should we maybe use the main agent (the one we interact with) - meta-agent, and then span another agent as an orchestrator?
 *   How often the orchestrator agent should inquery a human if any of its subagents have reached an impass and confidently state that they can not achieve the required goal? (falls into error handling, escalation policy)
-
+*
 **2. Use memory**
 
 Emphasize that the goal must be stored. We must never push out the goal from the main context.
@@ -92,16 +94,35 @@ A:  Goal is the part of main context. And orchestrator must always rememember it
 Q:  Should we let orchestrator maintain the memory as a part of context?
 A:  I don't think so. I belive an agent should just decide what kind of storage is enough for it weather it is just an internal plan or some database.
 
+**Identify the main agent/orchestator**
 
+-   Don't relu on persona, use "Jekyll and Hyde"
+-   Explain the main agent what do you want from it. Persona should be something that just better communicates the agent its goal.
+-   Either user or the main agent itself must communicate to subagents thier goal as well.
+</details>
+
+### 2. Instructions
+
+We provision to an agent a set of instructions that it can epmploy to deterministically perform a task.
+
+How ambiguous should instructions be?
+Should we amend them? If yes, what would be the mechanism of amendment?
+Should we rely on the user instructions only, or we discover them together with an agent?
+Are specs for code instructions in the sense that we use them to steer agents behaviour, or is it something else?
+When we define instructions are we implying a CoT or ToT, or agent decides for itself?
 
 ### 3. Agent's tooling
 
+Let's start from outline the basic set of tools that we already know might be employed by agents.
+
+*   Skills
+*   MCP's
+*   CLI
+*   Sub-agent creation
+
 **Problems to adress**
 
-
-### Agent's tooling and skill set
-
-*   Should we always instruct the agent to employ sepcific tools, skills?
+*   Should we always instruct the agent to employ sepcific tools?
 *   How aware agent is of it's own capabilities?
 
 **Proposition**
@@ -146,3 +167,47 @@ A:  I don't think so. I belive an agent should just decide what kind of storage 
 
 -   Less deterministic.
 -   Not secure, unless extra permissions are enabled.
+
+### 4, Guardrails
+
+Guardrails help us to protect ourselves from agent doing things that wasn't meant or instructed to do. E.g.
+
+-   Natural language instructions.
+    *   Can be prompt
+    *   Can be a custom rule
+-   Harness
+The ways to set up guardarails may be:
+
+**Natural language instructions**
+
+*   Pros
+    1.  Can help to steer the agent better
+    2.  Easy to set up
+*   Cons
+    1.  Can be bypassed, bcs say, some other instructions overrides it.
+    2.  Can be thorown out of context or lost there.
+
+**Harness level prohibition**
+
+*   Pros
+    1.  Hard to bypass
+*   Cons
+    1.   to rigid, may lead to babysitting an agent
+
+Are there any other guradarails?
+
+
+### 5. Escalation policy
+
+We want an agent to avoid
+
+-   Doing stuff that it is not meant to do
+-   Provide honest output
+
+What could be the need for escalation
+
+-   agent doesn't have access
+-   agent recognized that it is at impass and it needs user's input to get further instructions
+-   agent wants to reconsider approach (also an impass?)
+
+Are there any other cases where escalation to a human make sense?
