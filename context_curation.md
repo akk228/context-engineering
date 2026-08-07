@@ -39,9 +39,62 @@ The agent is:
 3. A set of tools it can employ.
 4. A user's servant :)
 
+Outlining an agent's anatomy helps us to understand how to prompt up an efficient agentic workflow.
+
+## Prompt constitution
+
+Below one may find a list of what I would call a prompt constitution. However, one may find some of these constituents overlapping, the separatino helps to achieve a better separation of concerns.
+
+1.  Goal definition or ploblem statement.
+2.  Execution instructions.
+3.  Tooling.
+4.  Guardrails.
+5.  Escalation policy.
+6.  Error handling.
+7.  Fallback mechanisms.
+8.  Verification.
+
+[NOTE]: let's agree that we couldn't care less about these constituents of a promp in case we are just shooting shit to see what sticks or when we have a request with an extremly small scope. Rememeber, we are here for a bigger fish, which is complex workflow orchestration.
+
+### 1. Goal definition and problem statement
+
+1.  Require clear declaration.
+2.  Must always be a part of the main context.
+
+#### Techniques**
+
+How to adress the main goal that you are instructing an agent to?
+
+**1. Use sub agents**
+
+We have the main agent that is an orchestrator. It 
+
+-   steers the conversation based on the main goal
+-   provides high-level instructions
+-   provides user output
+-   Takes executive descisions on the execution process
 
 
-### Agent's tooling
+**Open questions**
+
+*   Should we maybe use the main agent (the one we interact with) - meta-agent, and then span another agent as an orchestrator?
+*   How often the orchestrator agent should inquery a human if any of its subagents have reached an impass and confidently state that they can not achieve the required goal? (falls into error handling, escalation policy)
+
+**2. Use memory**
+
+Emphasize that the goal must be stored. We must never push out the goal from the main context.
+
+**Open questions**
+
+Q:  How to preserve? Should we just let the main goal be a part of the orchestator's context or store it in the permanent memory.
+A:  Goal is the part of main context. And orchestrator must always rememember it's main goal otherwise how would it steer a conversation.
+
+Q:  Should we let orchestrator maintain the memory as a part of context?
+A:  I don't think so. I belive an agent should just decide what kind of storage is enough for it weather it is just an internal plan or some database.
+
+
+
+### 3. Agent's tooling
 
 **Problems to adress**
 
