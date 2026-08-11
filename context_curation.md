@@ -18,7 +18,7 @@ The result is meant to be a skill that helps an engineer work together with an a
 **Outcome**
 
 1. A skill that helps write better prompts and follow context engineering instead of simple prompting.
-2. A self-guiding framework that self-corrects and self-improves over time.
+2. A framework that improves over time through deliberate iteration — not an agent that rewrites its own rules mid-task, but a skill whose instructions get refined between sessions as real failures surface (see §2's evaluation-driven amendment mechanism).
 
 ## Task variety
 
@@ -71,16 +71,23 @@ Before any execution prompt gets written, the agent runs a short triage against 
 | Time horizon | Single sitting, or does this span days / unattended stretches? | Multi-day → persisted state + a reconstructable agent identity |
 | Predictability | Can the steps be enumerated now, or do they emerge as work proceeds? | Fixed steps → workflow pattern (chaining/routing/parallel); emergent → open-ended agent loop |
 | Parallelizability | Do subtasks explore independent territory that would otherwise pollute one context? | Independent exploration → subagents, condensed return |
-| Stakes / reversibility | How costly is a wrong or premature "done"? | High stakes → low instruction-freedom, tighter verification, tighter guardrails |
+| Stakes / reversibility | How costly is a wrong or premature "done"? | High stakes → *default* toward low instruction-freedom, tighter verification, tighter guardrails (refined per-action later, not final here) |
 | Attention decoupling | Does the user need to walk away while it runs, or just resume a paused chat later? | True unattended execution → separate front-end/orchestrator split; "just don't forget" → persisted state alone is enough |
 
 The output is a stated recommendation, e.g.: *"This spans multiple sessions but doesn't need to run unattended, and the steps aren't fully knowable yet — I'd suggest a single persistent agent identity that reloads a progress file each time, with a subagent spun off only for the research-heavy part. Want me to set it up that way, or do you want tighter checkpoints given the stakes?"*
 
-Two of the axes do double duty elsewhere in this doc — **stakes/reversibility** also sets the instruction-freedom level (§2) and the guardrail tier (§4); **time horizon / attention decoupling** also sets the escalation cadence (§5). Architecture intake isn't a separate decision from those — it's where all of them get decided in one pass.
+Two of the axes feed forward into later sections — but as distinct inputs answering distinct questions, not one dial wearing different hats:
+
+-   **Stakes/reversibility** sets a *default baseline* for the instruction-freedom level (§2) and the guardrail tier (§4), and for how *readily* the agent escalates (§5's threshold). It's a starting point set once at intake, not a final answer applied uniformly — §2 checks that default against the operation's actual fragility before using it, and §4 applies it per action rather than once for the whole task.
+-   **Time horizon / attention decoupling** sets whether a persisted/reconstructable identity is needed at all (this section), and separately, *how* an escalation gets delivered (§5's delivery mechanism) — a synchronous question if the user's reachable in-session, an out-of-band wake signal if the work is genuinely unattended.
+
+"How cautious should the agent be" and "can the agent reach a human right now" are two different questions. Architecture intake is where both get an initial answer — later sections refine or apply them, they don't re-derive them from scratch.
 
 <details><summary>Why not always run a dedicated orchestrator + user-facing agent?</summary>
 
 It's tempting to default to a two-tier design — a lightweight user-facing agent plus a persistent orchestrator that survives across days. It genuinely earns its complexity when the task requires **true unattended execution** (attention truly decoupled from the conversation). But most "multi-day" needs are really "don't forget where we were," which a *single* reconstructable agent identity solves via persisted external state (progress file, git log) — the pattern Anthropic's long-running-harness work uses ([Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)): same role, same instructions, same tools, reloaded from disk each session.
+
+**A concrete line for "true unattended execution":** if the agent needs to keep making progress through a stretch where no synchronous human response is possible for longer than a normal working session — overnight, over a weekend, mid-flight on a multi-hour job — attention is genuinely decoupled. If the user is just stepping away between messages within the same rough workday, that's "don't forget where we were," and persisted state on a single reconstructable identity is enough.
 
 The two-tier split costs real complexity that a single reconstructable agent avoids:
 -   A hand-off contract between the tiers has to be designed, tested, and debugged.
@@ -98,20 +105,24 @@ Default: one agent holds the goal and *is* the orchestrator. Delegate to subagen
 
 **Where progress lives vs. where the goal lives**
 
-The goal itself stays in context — it's small, and an agent that can't recall its own goal can't steer a conversation. What *doesn't* fit in context over a long task is the accumulated progress toward that goal. That gets externalized to a persisted note/progress file the agent rereads (structured note-taking — see [Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)), not folded into permanent memory as a database. Memory-as-database is a heavier mechanism for a different problem (knowledge that should outlive any single task); a progress file is the right weight for "don't lose the thread."
+The goal itself stays in context — it's small, and an agent that can't recall its own goal can't steer a conversation. What *doesn't* fit in context over a long task is the accumulated progress toward that goal. That gets externalized to a persisted note/progress file the agent rereads — structured note-taking, per [Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents), which treats this and Anthropic's file-based memory tool as the same lightweight technique.
+
+*Our own addition, not from that source:* don't reach for a heavier memory-as-database system by default. A progress file is the right weight for "don't lose the thread"; a database is solving a different problem — knowledge meant to outlive any single task, which is a separate design decision from progress-tracking.
 
 **Identifying the main agent**
 
--   Don't rely on persona; use "Jekyll and Hyde" — the persona should communicate the goal more clearly, not stand in for it.
+-   Don't rely on persona to carry the goal — a persona is a communication aid (adjust tone/framing so the goal lands clearly), not a substitute for stating the goal itself. If the persona were dropped, the goal statement should still stand on its own.
 -   Either the user or the main agent itself must communicate the goal to any subagent it spawns.
 
 ### 2. Instructions
 
-**How ambiguous should instructions be?** This isn't a fixed policy — it's the same stakes/reversibility dial from §0, expressed as **degrees of freedom** ([Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)):
+**How ambiguous should instructions be?** Not a fixed policy — it's **degrees of freedom** ([Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)):
 
 -   **High freedom** (heuristics, judgment calls) — when multiple approaches are valid and context should decide. "Open field."
 -   **Medium freedom** (parameterized templates/pseudocode) — a preferred pattern exists but some variation is fine.
--   **Low freedom** (exact scripts, no deviation) — the operation is fragile or high-stakes and there's only one safe path. "Narrow bridge, cliffs on both sides."
+-   **Low freedom** (exact scripts, no deviation) — the operation is *fragile*, easy to get subtly and silently wrong, and there's only one safe path. "Narrow bridge, cliffs on both sides."
+
+The source grounds this in operation **fragility**, not stakes — and the two aren't interchangeable. §0's stakes/reversibility axis gives a reasonable *default* to start from (high stakes, no other information yet → start cautious), but fragility is what should actually decide it: a high-stakes task with many valid, recoverable approaches (e.g. "reduce false positives without hurting recall") stays high freedom despite the stakes; a low-stakes but fragile, easy-to-silently-corrupt operation (a one-way data transform) stays low freedom despite the low stakes. Check fragility before inheriting the stakes default uncritically.
 
 A spec and a goal statement aren't different categories of thing — they're two points on this same continuum (spec = low freedom, goal statement = high freedom).
 
@@ -120,18 +131,18 @@ A spec and a goal statement aren't different categories of thing — they're two
 **Amendment mechanism** — this splits into two different cases that shouldn't share a mechanism:
 
 -   *Mid-task*, the agent hits an instruction that doesn't fit reality → this is an escalation event (§5), not an instructions-section concern.
--   *For the skill itself*, over time → this is evaluation-driven iteration: build evaluations before extensive documentation, observe real failures, add the missing constraint, retest. This is the concrete mechanism behind the "self-corrects and self-improves" outcome stated at the top of this doc.
+-   *For the skill itself*, over time → this is evaluation-driven iteration: build evaluations before extensive documentation, observe real failures, add the missing constraint, retest. This is the concrete mechanism behind the second outcome stated at the top of this doc — improvement through deliberate, between-session iteration, not mid-task self-rewriting.
 
-**CoT / ToT** — dissolves rather than needing its own answer. Modern reasoning models handle chain-of-thought internally; tree-of-thought-style multi-path exploration is just the parallelization/voting pattern from the Task Variety taxonomy, invoked when the task calls for it — not a separate instructions-level decision.
+**CoT / ToT** — mostly dissolves rather than needing its own answer. Modern reasoning models handle chain-of-thought internally. Tree-of-thought's core mechanism — searching multiple paths *with backtracking* — is a genuinely different capability than the parallelization/voting pattern from the Task Variety taxonomy (generate N independent attempts, then compare); voting doesn't backtrack mid-path. For most tasks, voting is the practical substitute and this question can be dropped. If a task specifically needs exploration-with-backtracking, that's still an open design question this doc doesn't resolve.
 
 ### 3. Agent's tooling
 
-**Instruct, ask, or let it discover?** Same freedom dial as above, applied to tool selection specifically:
+**Instruct, ask, or let it discover?** Same freedom question as §2, applied to tool selection specifically — driven primarily by how fragile it is to pick the wrong tool (a wrong destructive-tool choice is fragile regardless of the task's overall stakes):
 
--   Low-freedom/high-stakes work → instruct the exact tool.
+-   Low-freedom/fragile tool choice → instruct the exact tool.
 -   High-freedom/exploratory work → let the agent discover.
 
-Not a fourth independent decision — one more place the §0 stakes axis pays rent.
+Not a fourth independent decision — the same fragility-first call as §2, applied one level down.
 
 **"How aware is the agent of its own capabilities?"** — this is what progressive disclosure via metadata is for. Every skill/tool gets a cheap always-loaded index (name + one-line description); full instructions load only once triggered. The agent always knows what it *could* reach for without paying the cost of loading everything up front ([Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)).
 
@@ -167,7 +178,12 @@ Disclose the *existence* of a conflicting rule, not its exact mechanics. Two rea
 
 We want an agent to avoid doing things it isn't meant to do, and to give honest output rather than force a result.
 
-**Escalation cadence isn't fixed globally** — it's a dial set during §0 intake, tied to the stakes axis. High-stakes work escalates readily; low-stakes exploratory work escalates rarely.
+**Escalation has two independent knobs, both set during §0 intake — keep them separate:**
+
+-   **Threshold** — how readily the agent escalates at all. Driven by stakes/reversibility: high-stakes work escalates readily, low-stakes exploratory work escalates rarely.
+-   **Delivery** — how the escalation actually reaches the user. Driven by time horizon/attention decoupling: a synchronous question if the user is present in the session, an out-of-band wake signal (below) if the work is genuinely unattended.
+
+These answer different questions ("should I stop and ask" vs. "how do I reach someone who isn't here") and can point in different directions on the same task — a high-stakes, unattended overnight job escalates *readily* (threshold) but has to do it *asynchronously* (delivery), not less often.
 
 **Triggers for escalation:**
 
@@ -177,7 +193,7 @@ We want an agent to avoid doing things it isn't meant to do, and to give honest 
 -   An instruction turns out to be ambiguous or doesn't fit what the agent is observing (the runtime half of §2's "amendment" question).
 -   An instruction conflicts with a known guardrail (§4's disclosure principle) — surfaced as a statement, not necessarily a blocking question, but the same "don't absorb it silently" instinct applies.
 
-**Escalation across time gaps** — for genuinely unattended, multi-day work, a second agent tier does *not* solve escalation by itself. What's actually needed is an out-of-band wake mechanism (a scheduled check, a push notification) independent of how many agent tiers exist. Don't conflate "we split the architecture" with "we solved escalation" — they're separate problems.
+**Escalation across time gaps** — for genuinely unattended, multi-day work, a second agent tier does *not* solve escalation by itself. What's actually needed is an out-of-band wake mechanism (a scheduled check, a push notification) independent of how many agent tiers exist. This skill doesn't invent that mechanism — it identifies *that* one is needed during §0 intake and uses whatever the operating environment already provides for it (a scheduling primitive, a notification channel); if the environment has nothing like that, unattended execution isn't actually available and the architecture choice reverts to a synchronous, attended one. Don't conflate "we split the architecture" with "we solved escalation" — they're separate problems.
 
 ### 6. Error handling
 
@@ -190,6 +206,7 @@ The agent must know what to do when it hits an error — a failed command, a too
 -   Fallback tooling — an alternate path when the primary one is unavailable.
 -   Request to a human — the last resort when no fallback tool applies.
 -   **Checkpointing as a fallback** — for longer tasks, commit-style checkpoints (e.g. git commits after each completed unit of work) let the agent revert to a known-good state instead of compounding a bad one, and let a resumed session recover its bearings by reading the log rather than re-deriving everything ([Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)).
+-   **This only works where a revert primitive exists.** Git-style checkpointing is native to code and config — it doesn't generalize to work with real external side effects (a production data mutation, a third-party API call, an email sent). For those, "fallback" has to mean something agreed *before* the work starts — a pre-planned compensating action, or an explicit human-owned rollback plan — not an assumed ability to revert. Flag this gap during §0 intake rather than discovering it after something irreversible has happened.
 
 ### 8. Verification
 
