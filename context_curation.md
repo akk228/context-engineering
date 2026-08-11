@@ -2,50 +2,54 @@
 
 ## Goal
 
-The result of this work is meant to help to curate better prompts that are aimed to be put together as a skill for Atutomated Prompt Optimization.
+The result of this work is meant to help to curate better prompts that are aimed to be put together as a skill for Automated Prompt Optimization.
 
-The result is meant to be a skill that helps engineer to work together with an agent to create better initial prompt and guide an engineer through a process of complex task execution.
+The result is meant to be a skill that helps an engineer work together with an agent to create a better initial prompt and guide the engineer through a process of complex task execution.
 
 **Problem statement**
 
--   Create a workflow that achieves the best results based on a specific initital requirments.
--   Create a workflow that overcomes various agent's constraints and flaws, such as:
+-   Create a workflow that achieves the best results based on specific initial requirements.
+-   Create a workflow that overcomes various agent constraints and flaws, such as:
     *   Finite context window
     *   Context pollution
-    *   False/unneccesary context propagation
+    *   False/unnecessary context propagation
     *   Hallucinations
 
 **Outcome**
 
-1. Skill that helps to write better prompts and follow context engineering instead of simple prompting.
-2. Self-guiding framework that self-corrects and self-improves over time.
+1. A skill that helps write better prompts and follow context engineering instead of simple prompting.
+2. A self-guiding framework that self-corrects and self-improves over time.
 
 ## Task variety
 
-The agentic workflow is heavily dependant on the type of problem that a prompt engineer is trying to solve. The workflows that I'm going to address are aminly the ones that I'm targeting for my own purposes and not the exacerbating list.
+The agentic workflow is heavily dependent on the type of problem being solved. Rather than inventing our own taxonomy, we adopt Anthropic's, since it maps cleanly onto real architectural decisions ([Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)):
 
-The tasks to be addressed are:
+-   **Prompt chaining** — fixed sequence of LLM calls, each processing the last one's output. Use when the task decomposes cleanly into ordered subtasks.
+-   **Routing** — classify the input, send it down a specialized path. Use when inputs fall into distinct categories that are better handled separately.
+-   **Parallelization** — run several LLM calls at once, either by *sectioning* (independent subtasks) or *voting* (same task, multiple attempts, compare). Use for speed or for higher confidence via multiple perspectives.
+-   **Orchestrator–workers** — a central agent decomposes the task on the fly and delegates to workers, then synthesizes. Use when the subtasks can't be predicted ahead of time.
+-   **Evaluator–optimizer** — one agent generates, another critiques, looped until it passes. Use when you have a clear evaluation criterion and iteration measurably helps.
+-   **Open-ended agent loop** — no predefined path; the agent plans, acts, observes, and adapts across an unknown number of steps. Use only when the task genuinely can't be hardcoded — it's the most autonomous and most expensive-to-get-wrong option.
 
-*   Execution
-*   Discovery
-*   Combination(?)
+Which of these applies to a given task is decided during the **[architecture intake](#0-architecture-intake)** step below, not guessed at in advance.
 
 ## Agent's anatomy
 
 The agent is:
 
-1. An interface to a underlying model.
-2. Agentic loop delivering the agentic reasoning.
+1. An interface to an underlying model.
+2. An agentic loop delivering the agentic reasoning.
 3. A set of tools it can employ.
 4. A user's servant :)
 
-Outlining an agent's anatomy helps us to understand how to prompt up an efficient agentic workflow.
+Outlining an agent's anatomy helps us understand how to prompt an efficient agentic workflow.
 
 ## Prompt constitution
 
-Below one may find a list of what I would call a prompt constitution. However, one may find some of these constituents overlapping, the separatino helps to achieve a better separation of concerns.
+Below is what we'll call a prompt constitution. Some of these constituents overlap; the separation is there for separation of concerns, not because each is fully independent.
 
-1.  Goal definition or ploblem statement.
+0.  Architecture intake.
+1.  Goal definition or problem statement.
 2.  Execution instructions.
 3.  Tooling.
 4.  Guardrails.
@@ -54,180 +58,142 @@ Below one may find a list of what I would call a prompt constitution. However, o
 7.  Fallback mechanisms.
 8.  Verification.
 
-[NOTE]: let's agree that we couldn't care less about these constituents of a promp in case we are just shooting shit to see what sticks or when we have a request with an extremly small scope. Rememeber, we are here for a bigger fish, which is complex workflow orchestration.
+[NOTE]: we couldn't care less about these constituents when we're just shooting shit to see what sticks, or when the request has an extremely small scope. We're here for the bigger fish: complex workflow orchestration.
+
+### 0. Architecture intake
+
+Before any execution prompt gets written, the agent runs a short triage against the actual task and **proposes** an architecture out loud — it doesn't silently pick one. The user confirms or overrides. This is what gives the workflow agility: the shape of the solution is negotiated per-task instead of fixed by the skill in advance.
+
+**Triage axes:**
+
+| Axis | Question the agent asks itself | Pulls toward |
+|---|---|---|
+| Time horizon | Single sitting, or does this span days / unattended stretches? | Multi-day → persisted state + a reconstructable agent identity |
+| Predictability | Can the steps be enumerated now, or do they emerge as work proceeds? | Fixed steps → workflow pattern (chaining/routing/parallel); emergent → open-ended agent loop |
+| Parallelizability | Do subtasks explore independent territory that would otherwise pollute one context? | Independent exploration → subagents, condensed return |
+| Stakes / reversibility | How costly is a wrong or premature "done"? | High stakes → low instruction-freedom, tighter verification, tighter guardrails |
+| Attention decoupling | Does the user need to walk away while it runs, or just resume a paused chat later? | True unattended execution → separate front-end/orchestrator split; "just don't forget" → persisted state alone is enough |
+
+The output is a stated recommendation, e.g.: *"This spans multiple sessions but doesn't need to run unattended, and the steps aren't fully knowable yet — I'd suggest a single persistent agent identity that reloads a progress file each time, with a subagent spun off only for the research-heavy part. Want me to set it up that way, or do you want tighter checkpoints given the stakes?"*
+
+Two of the axes do double duty elsewhere in this doc — **stakes/reversibility** also sets the instruction-freedom level (§2) and the guardrail tier (§4); **time horizon / attention decoupling** also sets the escalation cadence (§5). Architecture intake isn't a separate decision from those — it's where all of them get decided in one pass.
+
+<details><summary>Why not always run a dedicated orchestrator + user-facing agent?</summary>
+
+It's tempting to default to a two-tier design — a lightweight user-facing agent plus a persistent orchestrator that survives across days. It genuinely earns its complexity when the task requires **true unattended execution** (attention truly decoupled from the conversation). But most "multi-day" needs are really "don't forget where we were," which a *single* reconstructable agent identity solves via persisted external state (progress file, git log) — the pattern Anthropic's long-running-harness work uses ([Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)): same role, same instructions, same tools, reloaded from disk each session.
+
+The two-tier split costs real complexity that a single reconstructable agent avoids:
+-   A hand-off contract between the tiers has to be designed, tested, and debugged.
+-   The front-end agent needs a way to query orchestrator state without re-ingesting its full history — a second context-curation problem stacked on the first, with real risk of the two views drifting apart.
+-   It doesn't solve escalation on its own — an orchestrator stuck while the user is offline still needs an out-of-band wake signal, regardless of how many tiers exist.
+-   Authority gets ambiguous: if the user changes the plan mid-session, does the front-end agent edit state directly, or always route through the orchestrator?
+
+Default: one agent holds the goal and *is* the orchestrator. Delegate to subagents only for isolation/parallelism, with an explicit return-budget (e.g., "report back in under 2,000 tokens"). Stand up a genuinely separate orchestrator tier only when the attention-decoupling axis says so.
+</details>
 
 ### 1. Goal definition and problem statement
 
-1.  Require clear declaration.
-2.  Must always be a part of the main context.
+1.  Requires clear declaration.
+2.  Must always be part of the main context — never pushed out, never delegated to storage.
 
-<details><summary>Techniques</summary>
+**Where progress lives vs. where the goal lives**
 
-[WARNING]: maybe the stuff below shouldn't be here, maybe it's better to include it in a separate part on agent orchestration techinques.
+The goal itself stays in context — it's small, and an agent that can't recall its own goal can't steer a conversation. What *doesn't* fit in context over a long task is the accumulated progress toward that goal. That gets externalized to a persisted note/progress file the agent rereads (structured note-taking — see [Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)), not folded into permanent memory as a database. Memory-as-database is a heavier mechanism for a different problem (knowledge that should outlive any single task); a progress file is the right weight for "don't lose the thread."
 
-How to adress the main goal that you are instructing an agent to?
+**Identifying the main agent**
 
-**1. Use sub agents**
-
-We have the main agent that is an orchestrator. It 
-
--   steers the conversation based on the main goal
--   provides high-level instructions
--   provides user output
--   Takes executive descisions on the execution process
-
-
-**Open questions**
-
-*   Should we maybe use the main agent (the one we interact with) - meta-agent, and then span another agent as an orchestrator?
-*   How often the orchestrator agent should inquery a human if any of its subagents have reached an impass and confidently state that they can not achieve the required goal? (falls into error handling, escalation policy)
-*
-**2. Use memory**
-
-Emphasize that the goal must be stored. We must never push out the goal from the main context.
-
-**Open questions**
-
-Q:  How to preserve? Should we just let the main goal be a part of the orchestator's context or store it in the permanent memory.
-A:  Goal is the part of main context. And orchestrator must always rememember it's main goal otherwise how would it steer a conversation.
-
-Q:  Should we let orchestrator maintain the memory as a part of context?
-A:  I don't think so. I belive an agent should just decide what kind of storage is enough for it weather it is just an internal plan or some database.
-
-**Identify the main agent/orchestator**
-
--   Don't relu on persona, use "Jekyll and Hyde"
--   Explain the main agent what do you want from it. Persona should be something that just better communicates the agent its goal.
--   Either user or the main agent itself must communicate to subagents thier goal as well.
-</details>
+-   Don't rely on persona; use "Jekyll and Hyde" — the persona should communicate the goal more clearly, not stand in for it.
+-   Either the user or the main agent itself must communicate the goal to any subagent it spawns.
 
 ### 2. Instructions
 
-We provision to an agent a set of instructions that it can epmploy to deterministically perform a task.
+**How ambiguous should instructions be?** This isn't a fixed policy — it's the same stakes/reversibility dial from §0, expressed as **degrees of freedom** ([Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)):
 
-How ambiguous should instructions be?
-Should we amend them? If yes, what would be the mechanism of amendment?
-Should we rely on the user instructions only, or we discover them together with an agent?
-Are specs for code instructions in the sense that we use them to steer agents behaviour, or is it something else?
-When we define instructions are we implying a CoT or ToT, or agent decides for itself?
+-   **High freedom** (heuristics, judgment calls) — when multiple approaches are valid and context should decide. "Open field."
+-   **Medium freedom** (parameterized templates/pseudocode) — a preferred pattern exists but some variation is fine.
+-   **Low freedom** (exact scripts, no deviation) — the operation is fragile or high-stakes and there's only one safe path. "Narrow bridge, cliffs on both sides."
+
+A spec and a goal statement aren't different categories of thing — they're two points on this same continuum (spec = low freedom, goal statement = high freedom).
+
+**Should we rely on user instructions only, or discover together?** Same answer as §0: don't presuppose a freedom level, negotiate it. The agent proposes one based on its read of the task; the user confirms or adjusts.
+
+**Amendment mechanism** — this splits into two different cases that shouldn't share a mechanism:
+
+-   *Mid-task*, the agent hits an instruction that doesn't fit reality → this is an escalation event (§5), not an instructions-section concern.
+-   *For the skill itself*, over time → this is evaluation-driven iteration: build evaluations before extensive documentation, observe real failures, add the missing constraint, retest. This is the concrete mechanism behind the "self-corrects and self-improves" outcome stated at the top of this doc.
+
+**CoT / ToT** — dissolves rather than needing its own answer. Modern reasoning models handle chain-of-thought internally; tree-of-thought-style multi-path exploration is just the parallelization/voting pattern from the Task Variety taxonomy, invoked when the task calls for it — not a separate instructions-level decision.
 
 ### 3. Agent's tooling
 
-Let's start from outline the basic set of tools that we already know might be employed by agents.
+**Instruct, ask, or let it discover?** Same freedom dial as above, applied to tool selection specifically:
 
-*   Skills
-*   MCP's
-*   CLI
-*   Sub-agent creation
+-   Low-freedom/high-stakes work → instruct the exact tool.
+-   High-freedom/exploratory work → let the agent discover.
 
-**Problems to adress**
+Not a fourth independent decision — one more place the §0 stakes axis pays rent.
 
-*   Should we always instruct the agent to employ sepcific tools?
-*   How aware agent is of it's own capabilities?
+**"How aware is the agent of its own capabilities?"** — this is what progressive disclosure via metadata is for. Every skill/tool gets a cheap always-loaded index (name + one-line description); full instructions load only once triggered. The agent always knows what it *could* reach for without paying the cost of loading everything up front ([Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)).
 
-**Proposition**
+**Tool design itself is prompt engineering** ([Writing effective tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents), [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)):
 
-1. Instruct.
-2. Ask.
-3. Let it discover along the way.
+-   **Consolidate** — one `schedule_event` beats three raw calls the agent has to chain itself.
+-   **Namespace** clearly when tool counts grow (`service_resource_action`).
+-   **Control verbosity** — let the agent request concise vs. detailed responses; concise cuts token cost roughly two-thirds.
+-   **Poka-yoke the inputs** — shape arguments so mistakes are structurally hard (e.g. absolute-only file paths), rather than hoping the model reads a warning.
+-   **Evaluate and iterate** — run real tasks, inspect transcripts and tool-call metrics, refine descriptions. Small description edits can produce large behavior changes.
 
-1. **Instructing the agent**
+### 4. Guardrails
 
-**Pros**
+Guardrails protect against the agent doing things it wasn't meant to do. The original two-option framing (natural language vs. harness-level prohibition) is missing two real, distinct options — the fuller taxonomy is four tiers, from softest to hardest to bypass:
 
--   Deterministic.
--   Structured and predictable - lets an engineer to understand what's going on better.
--   More secure.
+1.  **Natural language instructions** — easy to set up, steerable, but can be overridden by other instructions or simply lost from context.
+2.  **Tool-shape constraints (poka-yoke)** — the bad action is structurally hard to take (a destructive op requires a confirmation token as a parameter; writes require absolute paths). More granular than a blanket block, and there's no wording to override — the constraint lives in the function signature, not a sentence.
+3.  **Runtime approval gates** — a human confirms before a specific risky call executes. Dynamic, per-call, not all-or-nothing.
+4.  **Harness-level prohibition** — the action is statically blocked outright. Hardest to bypass, but rigid enough to cause babysitting if over-applied.
 
-**Cons**
-
--   Narrow - you know worse than an agent (likely)
--   Rigid.
-
-2. **Asking**
-
-**Pros**
-
--   Agile - combine knowledge of your own and agent's.
--   Still deterministic - you know the resulting tool set that is at your disposal.
--   Also predictable.
-
-**Cons**
-
--   Rigidity -  doesn't allow changing within a cahnging scope. Meaning that is bad for discovery, but ok when engineer understands the scope well, and the task is well structured.
-
-3. **Agent discovers itself**
-
-**Pros**
-
--   Best for search, allows agent to adapt based in chnaging scope.
-
-
-**Cons**
-
--   Less deterministic.
--   Not secure, unless extra permissions are enabled.
-
-### 4, Guardrails
-
-Guardrails help us to protect ourselves from agent doing things that wasn't meant or instructed to do. E.g.
-
--   Natural language instructions.
-    *   Can be prompt
-    *   Can be a custom rule
--   Harness
-The ways to set up guardarails may be:
-
-**Natural language instructions**
-
-*   Pros
-    1.  Can help to steer the agent better
-    2.  Easy to set up
-*   Cons
-    1.  Can be bypassed, bcs say, some other instructions overrides it.
-    2.  Can be thorown out of context or lost there.
-
-**Harness level prohibition**
-
-*   Pros
-    1.  Hard to bypass
-*   Cons
-    1.   to rigid, may lead to babysitting an agent
-
-Are there any other guradarails?
-
+Pick the tier per action during §0 intake, scaled to that action's blast radius — not one global policy for the whole task.
 
 ### 5. Escalation policy
 
-We want an agent to avoid
+We want an agent to avoid doing things it isn't meant to do, and to give honest output rather than force a result.
 
--   Doing stuff that it is not meant to do
--   Provide honest output
+**Escalation cadence isn't fixed globally** — it's a dial set during §0 intake, tied to the stakes axis. High-stakes work escalates readily; low-stakes exploratory work escalates rarely.
 
-What could be the need for escalation
+**Triggers for escalation:**
 
--   agent doesn't have access
--   agent recognized that it is at impass and it needs user's input to get further instructions
--   agent wants to reconsider approach (also an impass?)
+-   Agent lacks access it needs.
+-   Agent recognizes an impasse and needs the user's input to proceed.
+-   Agent wants to reconsider its approach (arguably a form of impasse).
+-   An instruction turns out to be ambiguous or doesn't fit what the agent is observing (the runtime half of §2's "amendment" question).
 
-Are there any other cases where escalation to a human make sense?
+**Escalation across time gaps** — for genuinely unattended, multi-day work, a second agent tier does *not* solve escalation by itself. What's actually needed is an out-of-band wake mechanism (a scheduled check, a push notification) independent of how many agent tiers exist. Don't conflate "we split the architecture" with "we solved escalation" — they're separate problems.
 
 ### 6. Error handling
 
-Agent must understand what it would do in case it encounters errors. It might be command execution error or tooling without access.
+The agent must know what to do when it hits an error — a failed command, a tool without access, and so on.
 
-Q:  Do we consider the wrong output as an error? Meaning if the result didn't produce desired outcome
-A:  I belive not. It is just a part of instructions to achieve the goal (Or not?)
+**Is a wrong output an error?** No — a result that doesn't hit the desired outcome is not a tooling/execution error, it's just the task not yet done. It's handled by the verification loop (§8), not by error-handling logic. Error handling is for *execution* failures (crashed command, denied permission); verification is for *result-quality* failures.
 
-### 7. Fallback mechanism
+### 7. Fallback mechanisms
 
--   Fallback tooling
--   Request to a human
+-   Fallback tooling — an alternate path when the primary one is unavailable.
+-   Request to a human — the last resort when no fallback tool applies.
+-   **Checkpointing as a fallback** — for longer tasks, commit-style checkpoints (e.g. git commits after each completed unit of work) let the agent revert to a known-good state instead of compounding a bad one, and let a resumed session recover its bearings by reading the log rather than re-deriving everything ([Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)).
 
 ### 8. Verification
 
-We want agent to be able to test the results of its own work.
+We want the agent to be able to test the results of its own work, and to do so before declaring victory.
 
--   Apply tools, like run tests, checkers, commands with predictable output.
--   Adversarial prompting: creating reviewer subagents that would challenge the output.
--   Reflection. The agent should be instructed in such a way that it would recognize its own failure in achieving the desired outocme. E.g. if it runs into an error, it shouldn't attempt to fix at expense of deviating from the given instructions. The outcome of failure msut be acknowledgment of failure, and either requesting user to reconsider the approach, or explain why the desiarable goal can not be achieved.
+-   **Apply tools** — run tests, checkers, or commands with predictable, machine-checkable output wherever possible. Prefer this over the agent's self-report.
+-   **Structured checklists** — for larger tasks, an explicit itemized feature/requirement list (not a vague sense of "done") prevents premature completion claims; each item gets its own verification step before being marked done.
+-   **Adversarial prompting** — reviewer subagents whose job is to challenge the output, not confirm it.
+-   **Reflection** — the agent should recognize its own failure to reach the goal without deviating from given instructions just to force a fix. On failure, the correct output is an honest acknowledgment: either ask the user to reconsider the approach, or explain concretely why the goal can't be achieved as specified — not a silent workaround.
+
+## Sources
+
+-   [Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) — Anthropic
+-   [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents) — Anthropic
+-   [Writing effective tools for AI agents](https://www.anthropic.com/engineering/writing-tools-for-agents) — Anthropic
+-   [Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents) — Anthropic
+-   [Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices) — Anthropic
