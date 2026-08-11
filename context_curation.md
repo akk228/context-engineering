@@ -42,7 +42,7 @@ The agent is:
 3. A set of tools it can employ.
 4. A user's servant :)
 
-Outlining an agent's anatomy helps us understand how to prompt an efficient agentic workflow.
+Outlining an agent's anatomy helps us understand how to prompt an efficient agentic workflow: the constitution below is really just instructions aimed at these four parts. The model interface is what §2's instruction-freedom question calibrates; the agentic loop is what §5's escalation and §8's verification actually regulate — plan, act, check, escalate if stuck; the tool set is §3's whole subject; and "servant" is why §0 negotiates the architecture with the user instead of presupposing one, and why §4 discloses conflicts rather than absorbing them silently.
 
 ## Prompt constitution
 
@@ -69,19 +69,34 @@ Before any execution prompt gets written, the agent runs a short triage against 
 | Axis | Question the agent asks itself | Pulls toward |
 |---|---|---|
 | Time horizon | Single sitting, or does this span days / unattended stretches? | Multi-day → persisted state + a reconstructable agent identity |
-| Predictability | Can the steps be enumerated now, or do they emerge as work proceeds? | Fixed steps → workflow pattern (chaining/routing/parallel); emergent → open-ended agent loop |
+| Predictability | Can the steps be enumerated now, or do they emerge as work proceeds? | Fixed steps → chaining / routing / parallelization; emergent → orchestrator-workers / evaluator-optimizer / open-ended loop. Which *specific* one of the six → see below the table. |
 | Parallelizability | Do subtasks explore independent territory that would otherwise pollute one context? | Independent exploration → subagents, condensed return |
-| Stakes / reversibility | How costly is a wrong or premature "done"? | High stakes → *default* toward low instruction-freedom, tighter verification, tighter guardrails (refined per-action later, not final here) |
+| Stakes | How costly is a wrong or premature "done"? | High stakes → *default* toward low instruction-freedom, tighter verification, tighter guardrails (refined per-action later, not final here) — regardless of whether the action is reversible |
+| Reversibility | Does a revert primitive actually exist for this action (git-style undo, a cancel-before-send window), or is it a one-way door the moment it's taken? | No revert primitive → require an explicit, pre-agreed fallback or compensating-action plan (§7) before proceeding — regardless of stakes |
 | Attention decoupling | Does the user need to walk away while it runs, or just resume a paused chat later? | True unattended execution → separate front-end/orchestrator split; "just don't forget" → persisted state alone is enough |
+
+**Picking the specific pattern.** "Fixed" and "emergent" each still cover three patterns that get muddled if left there — one more question, asked on whichever side the task landed on, separates them:
+
+-   *Fixed steps* — how do the steps relate to each other?
+    -   Each step needs the previous step's output, in order → **chaining**.
+    -   The input first has to be classified, then handled down one of several distinct paths → **routing**.
+    -   The steps don't depend on each other — they can run side by side, either covering independent ground (*sectioning*) or attempting the same task multiple times to compare (*voting*) → **parallelization**.
+-   *Emergent steps* — what, if anything, can still be pinned down without a fixed step list?
+    -   There's a clear, checkable pass/fail or quality bar to run output against (tests, a rubric, a validator) → **evaluator-optimizer**.
+    -   No clean evaluation criterion, but a central agent can still plan as it goes and delegate well-scoped pieces to workers, then synthesize what comes back → **orchestrator-workers**.
+    -   Neither a predefined structure nor a clean evaluation criterion exists — the agent has to plan, act, observe, and adapt with no template to fall back on → **open-ended agent loop**.
+
+A large task can nest more than one of these — e.g. an orchestrator delegates to a worker that runs an evaluator-optimizer loop, one step of which is itself a short chain. Pick the pattern governing the top-level split first; let the rest show up as sub-structure one level down rather than forcing one pattern to cover the whole task.
 
 The output is a stated recommendation, e.g.: *"This spans multiple sessions but doesn't need to run unattended, and the steps aren't fully knowable yet — I'd suggest a single persistent agent identity that reloads a progress file each time, with a subagent spun off only for the research-heavy part. Want me to set it up that way, or do you want tighter checkpoints given the stakes?"*
 
-Two of the axes feed forward into later sections — but as distinct inputs answering distinct questions, not one dial wearing different hats:
+Three of the axes feed forward into later sections — but as distinct inputs answering distinct questions, not one dial wearing different hats:
 
--   **Stakes/reversibility** sets a *default baseline* for the instruction-freedom level (§2) and the guardrail tier (§4), and for how *readily* the agent escalates (§5's threshold). It's a starting point set once at intake, not a final answer applied uniformly — §2 checks that default against the operation's actual fragility before using it, and §4 applies it per action rather than once for the whole task.
+-   **Stakes** sets a *default baseline* for the instruction-freedom level (§2) and the guardrail tier (§4), and for how *readily* the agent escalates (§5's threshold). It's a starting point set once at intake, not a final answer applied uniformly — §2 checks that default against the operation's actual fragility before using it, and §4 assigns a tier per *action type* rather than one tier for the whole task: categories known at intake get theirs in this conversation, while a genuinely new category of risky action discovered mid-task gets triaged against the same criteria on the spot, without reopening intake.
+-   **Reversibility** is a separate question from stakes — a cheap action can still be irreversible, and an expensive one can still be trivially revertible. It sets whether §7's fallback mechanism can lean on a revert primitive (checkpoint/undo) or must instead be a compensating action agreed *before* the work starts.
 -   **Time horizon / attention decoupling** sets whether a persisted/reconstructable identity is needed at all (this section), and separately, *how* an escalation gets delivered (§5's delivery mechanism) — a synchronous question if the user's reachable in-session, an out-of-band wake signal if the work is genuinely unattended.
 
-"How cautious should the agent be" and "can the agent reach a human right now" are two different questions. Architecture intake is where both get an initial answer — later sections refine or apply them, they don't re-derive them from scratch.
+"How cautious should the agent be," "can this be undone," and "can the agent reach a human right now" are three different questions. Architecture intake is where all three get an initial answer — later sections refine or apply them, they don't re-derive them from scratch.
 
 <details><summary>Why not always run a dedicated orchestrator + user-facing agent?</summary>
 
@@ -95,7 +110,7 @@ The two-tier split costs real complexity that a single reconstructable agent avo
 -   It doesn't solve escalation on its own — an orchestrator stuck while the user is offline still needs an out-of-band wake signal, regardless of how many tiers exist.
 -   Authority gets ambiguous: if the user changes the plan mid-session, does the front-end agent edit state directly, or always route through the orchestrator?
 
-Default: one agent holds the goal and *is* the orchestrator. Delegate to subagents only for isolation/parallelism, with an explicit return-budget (e.g., "report back in under 2,000 tokens"). Stand up a genuinely separate orchestrator tier only when the attention-decoupling axis says so.
+Default: one agent holds the goal and *is* the orchestrator. Delegate to subagents only for isolation/parallelism, with an explicit return-budget (e.g., "report back in under 2,000 tokens"). That return-budget should leave room for the finding's basis (what was actually checked, how confident the subagent is) and not just the bottom-line conclusion — the parent can't spot-check a claim it can't trace (see §8). Stand up a genuinely separate orchestrator tier only when the attention-decoupling axis says so.
 </details>
 
 ### 1. Goal definition and problem statement
@@ -122,7 +137,7 @@ The goal itself stays in context — it's small, and an agent that can't recall 
 -   **Medium freedom** (parameterized templates/pseudocode) — a preferred pattern exists but some variation is fine.
 -   **Low freedom** (exact scripts, no deviation) — the operation is *fragile*, easy to get subtly and silently wrong, and there's only one safe path. "Narrow bridge, cliffs on both sides."
 
-The source grounds this in operation **fragility**, not stakes — and the two aren't interchangeable. §0's stakes/reversibility axis gives a reasonable *default* to start from (high stakes, no other information yet → start cautious), but fragility is what should actually decide it: a high-stakes task with many valid, recoverable approaches (e.g. "reduce false positives without hurting recall") stays high freedom despite the stakes; a low-stakes but fragile, easy-to-silently-corrupt operation (a one-way data transform) stays low freedom despite the low stakes. Check fragility before inheriting the stakes default uncritically.
+The source grounds this in operation **fragility**, not stakes — and the two aren't interchangeable. §0's stakes axis gives a reasonable *default* to start from (high stakes, no other information yet → start cautious), but fragility is what should actually decide it: a high-stakes task with many valid, recoverable approaches (e.g. "reduce false positives without hurting recall") stays high freedom despite the stakes; a low-stakes but fragile, easy-to-silently-corrupt operation (a one-way data transform) stays low freedom despite the low stakes. Check fragility before inheriting the stakes default uncritically.
 
 A spec and a goal statement aren't different categories of thing — they're two points on this same continuum (spec = low freedom, goal statement = high freedom).
 
@@ -146,12 +161,14 @@ Not a fourth independent decision — the same fragility-first call as §2, appl
 
 **"How aware is the agent of its own capabilities?"** — this is what progressive disclosure via metadata is for. Every skill/tool gets a cheap always-loaded index (name + one-line description); full instructions load only once triggered. The agent always knows what it *could* reach for without paying the cost of loading everything up front ([Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)).
 
-**Tool design itself is prompt engineering** ([Writing effective tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents), [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)):
+Progressive disclosure, verbosity control, and consolidation below all serve the same underlying constraint: **the context window is a public good** — every token loaded into it competes with conversation history and everything else the agent needs to hold in view, so the cost of a chatty tool or an eagerly-loaded manifest is charged to the whole task, not just the caller who spent it ([Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)).
+
+**Tool design itself is prompt engineering** ([Writing effective tools for agents](https://www.anthropic.com/engineering/writing-tools-for-agents)):
 
 -   **Consolidate** — one `schedule_event` beats three raw calls the agent has to chain itself.
 -   **Namespace** clearly when tool counts grow (`service_resource_action`).
 -   **Control verbosity** — let the agent request concise vs. detailed responses; concise cuts token cost roughly two-thirds.
--   **Poka-yoke the inputs** — shape arguments so mistakes are structurally hard (e.g. absolute-only file paths), rather than hoping the model reads a warning.
+-   **Poka-yoke the inputs** ([Building effective agents](https://www.anthropic.com/engineering/building-effective-agents)) — shape arguments so mistakes are structurally hard (e.g. absolute-only file paths), rather than hoping the model reads a warning.
 -   **Evaluate and iterate** — run real tasks, inspect transcripts and tool-call metrics, refine descriptions. Small description edits can produce large behavior changes.
 
 ### 4. Guardrails
@@ -163,7 +180,7 @@ Guardrails protect against the agent doing things it wasn't meant to do. The ori
 3.  **Runtime approval gates** — a human confirms before a specific risky call executes. Dynamic, per-call, not all-or-nothing.
 4.  **Harness-level prohibition** — the action is statically blocked outright. Hardest to bypass, but rigid enough to cause babysitting if over-applied.
 
-Pick the tier per action during §0 intake, scaled to that action's blast radius — not one global policy for the whole task.
+Pick the tier per action type, scaled to that action's blast radius — not one global policy for the whole task. Categories known at task start get theirs during §0 intake, together with the user. A genuinely new category of risky action that surfaces mid-task (e.g. a bulk-user-reset capability discovered in week 3 of a migration) doesn't require reopening that conversation — the agent applies the same stakes/fragility criteria on the spot and assigns it a tier itself, disclosing that it's doing so, in keeping with this section's disclosure principle below.
 
 **Disclosing conflicts, not absorbing them silently**
 
@@ -172,7 +189,7 @@ What an agent can honestly disclose about tiers 2–4 is bounded by what it can 
 -   **Proactive** — when a user instruction *explicitly and directly* conflicts with a rule the agent already knows about (e.g. "never ask me for confirmation on anything," when destructive ops carry a hard-coded approval gate), say so at the moment the instruction is given — don't silently accept it and let the user discover the gap mid-task.
 -   **Reactive** — when a call gets blocked or denied without prior warning, report what happened and why. Don't quietly retry, work around it, or go silent.
 
-Disclose the *existence* of a conflicting rule, not its exact mechanics. Two reasons, not one: it's the same "context is a public good" concern from §0/§3 — a full manifest of constraints at session start is noise for a conflict that may never occur — and precisely enumerating exact rule *boundaries* hands an adversarial user or injected content a map for finding the gap between rules. "I have a constraint here" is transparency; specifying the exact edge conditions that trigger it is closer to attack-surface documentation.
+Disclose the *existence* of a conflicting rule, not its exact mechanics. Two reasons, not one: it's the same "context is a public good" concern from §3 — a full manifest of constraints at session start is noise for a conflict that may never occur — and precisely enumerating exact rule *boundaries* hands an adversarial user or injected content a map for finding the gap between rules. "I have a constraint here" is transparency; specifying the exact edge conditions that trigger it is closer to attack-surface documentation.
 
 ### 5. Escalation policy
 
@@ -180,7 +197,7 @@ We want an agent to avoid doing things it isn't meant to do, and to give honest 
 
 **Escalation has two independent knobs, both set during §0 intake — keep them separate:**
 
--   **Threshold** — how readily the agent escalates at all. Driven by stakes/reversibility: high-stakes work escalates readily, low-stakes exploratory work escalates rarely.
+-   **Threshold** — how readily the agent escalates at all. Driven by stakes: high-stakes work escalates readily, low-stakes exploratory work escalates rarely.
 -   **Delivery** — how the escalation actually reaches the user. Driven by time horizon/attention decoupling: a synchronous question if the user is present in the session, an out-of-band wake signal (below) if the work is genuinely unattended.
 
 These answer different questions ("should I stop and ask" vs. "how do I reach someone who isn't here") and can point in different directions on the same task — a high-stakes, unattended overnight job escalates *readily* (threshold) but has to do it *asynchronously* (delivery), not less often.
@@ -206,7 +223,7 @@ The agent must know what to do when it hits an error — a failed command, a too
 -   Fallback tooling — an alternate path when the primary one is unavailable.
 -   Request to a human — the last resort when no fallback tool applies.
 -   **Checkpointing as a fallback** — for longer tasks, commit-style checkpoints (e.g. git commits after each completed unit of work) let the agent revert to a known-good state instead of compounding a bad one, and let a resumed session recover its bearings by reading the log rather than re-deriving everything ([Effective harnesses for long-running agents](https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents)).
--   **This only works where a revert primitive exists.** Git-style checkpointing is native to code and config — it doesn't generalize to work with real external side effects (a production data mutation, a third-party API call, an email sent). For those, "fallback" has to mean something agreed *before* the work starts — a pre-planned compensating action, or an explicit human-owned rollback plan — not an assumed ability to revert. Flag this gap during §0 intake rather than discovering it after something irreversible has happened.
+-   **This only works where a revert primitive exists.** Git-style checkpointing is native to code and config — it doesn't generalize to work with real external side effects (a production data mutation, a third-party API call, an email sent). Note that this can cut against stakes: sending one email is low-stakes but has no revert primitive once sent, while a risky code change is high-stakes but usually fully git-revertible — so reversibility has to be checked on its own terms, not inferred from how costly the action is. For actions with no revert primitive, "fallback" has to mean something agreed *before* the work starts — a pre-planned compensating action, or an explicit human-owned rollback plan — not an assumed ability to revert. §0's intake table asks this directly via its **reversibility** axis ("does a revert primitive actually exist for this action?") — flag the gap there rather than discovering it after something irreversible has happened.
 
 ### 8. Verification
 
@@ -216,6 +233,7 @@ We want the agent to be able to test the results of its own work, and to do so b
 -   **Structured checklists** — for larger tasks, an explicit itemized feature/requirement list (not a vague sense of "done") prevents premature completion claims; each item gets its own verification step before being marked done.
 -   **Adversarial prompting** — reviewer subagents whose job is to challenge the output, not confirm it.
 -   **Reflection** — the agent should recognize its own failure to reach the goal without deviating from given instructions just to force a fix. On failure, the correct output is an honest acknowledgment: either ask the user to reconsider the approach, or explain concretely why the goal can't be achieved as specified — not a silent workaround.
+-   **Spot-check subagent returns** — a subagent's finding is a claim, not verified ground truth, even though it arrives as clean, condensed text that reads like a settled fact. Before folding it into your own reasoning, forwarding it to the user, or acting on it, weigh it against its stated basis (see §0) and, for anything surprising or high-stakes, verify it directly (re-run the check, read the cited source) rather than propagating it on trust. This is what keeps an unverified or wrong subagent result from becoming the orchestrator's own false context.
 
 ## Sources
 
