@@ -154,6 +154,15 @@ Guardrails protect against the agent doing things it wasn't meant to do. The ori
 
 Pick the tier per action during §0 intake, scaled to that action's blast radius — not one global policy for the whole task.
 
+**Disclosing conflicts, not absorbing them silently**
+
+What an agent can honestly disclose about tiers 2–4 is bounded by what it can actually see: tool-shape constraints are knowable in advance from the tool's own schema; runtime gates are knowable by category but not exact boundary until triggered; harness-level blocks are often opaque until a call is actually denied. Disclosure has to follow that knowability, not pretend to a completeness the agent doesn't have:
+
+-   **Proactive** — when a user instruction *explicitly and directly* conflicts with a rule the agent already knows about (e.g. "never ask me for confirmation on anything," when destructive ops carry a hard-coded approval gate), say so at the moment the instruction is given — don't silently accept it and let the user discover the gap mid-task.
+-   **Reactive** — when a call gets blocked or denied without prior warning, report what happened and why. Don't quietly retry, work around it, or go silent.
+
+Disclose the *existence* of a conflicting rule, not its exact mechanics. Two reasons, not one: it's the same "context is a public good" concern from §0/§3 — a full manifest of constraints at session start is noise for a conflict that may never occur — and precisely enumerating exact rule *boundaries* hands an adversarial user or injected content a map for finding the gap between rules. "I have a constraint here" is transparency; specifying the exact edge conditions that trigger it is closer to attack-surface documentation.
+
 ### 5. Escalation policy
 
 We want an agent to avoid doing things it isn't meant to do, and to give honest output rather than force a result.
@@ -166,6 +175,7 @@ We want an agent to avoid doing things it isn't meant to do, and to give honest 
 -   Agent recognizes an impasse and needs the user's input to proceed.
 -   Agent wants to reconsider its approach (arguably a form of impasse).
 -   An instruction turns out to be ambiguous or doesn't fit what the agent is observing (the runtime half of §2's "amendment" question).
+-   An instruction conflicts with a known guardrail (§4's disclosure principle) — surfaced as a statement, not necessarily a blocking question, but the same "don't absorb it silently" instinct applies.
 
 **Escalation across time gaps** — for genuinely unattended, multi-day work, a second agent tier does *not* solve escalation by itself. What's actually needed is an out-of-band wake mechanism (a scheduled check, a push notification) independent of how many agent tiers exist. Don't conflate "we split the architecture" with "we solved escalation" — they're separate problems.
 
