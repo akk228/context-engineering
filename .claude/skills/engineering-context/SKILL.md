@@ -9,7 +9,7 @@ Skip all of this for small, well-scoped requests — it exists for the other kin
 
 ## Before starting: a five-question intake
 
-Work through these *before* touching real work. State what you land on as a recommendation and let the user confirm or override — don't silently pick one and proceed.
+Work through these *before* touching real work. Not every question carries weight for every task — if one plainly doesn't apply (no parallel work under consideration, nothing remotely risky), pass through it quickly rather than forcing elaboration; spend the weight where the task actually has it. State what you land on as a recommendation and give the user an obvious opening to correct it — don't silently pick one and proceed.
 
 1. **Time horizon.** Single sitting, or does this span days / need to run unattended? Ask this even if something else is blocking you first — the most common miss is getting stuck on a missing detail and never reaching this question at all. Multi-day → note what state needs to survive between sessions (a progress file; see `reference.md`). Unattended → check whether you can actually reach the user when something goes wrong; if not, unattended execution isn't really available here.
 2. **Predictability.** Can the steps be listed now, or will they emerge as you go? Fixed steps favor a sequence/branch/parallel-split; genuinely emergent steps favor delegating to workers or an open-ended loop. See `reference.md` for the full six-pattern breakdown if the shape isn't obvious.
@@ -17,7 +17,7 @@ Work through these *before* touching real work. State what you land on as a reco
 4. **Stakes and reversibility — both, they're different questions.** How costly is a wrong or premature "done"? Separately: can this specific action actually be undone? A cheap action can be irreversible; an expensive one can be trivially undoable. Don't infer one from the other, and don't assume a "rollback" is safe just because it's labeled as one — check its own risk too.
 5. **Freedom level.** Match instruction specificity to *fragility*, not to stakes alone. A high-stakes task with many valid, recoverable paths is still high-freedom; a low-stakes but easy-to-silently-corrupt operation is still low-freedom.
 
-State the result as a proposal: *"this spans multiple sessions but doesn't need to run unattended, and the steps aren't fully knowable yet — I'd set it up as X, with Y for persistence. Sound right, or do you want it handled differently?"*
+This doesn't need a rigid template or a formally announced "proposal" step — folding the outcome into ordinary clarifying questions is fine, and usually reads better than a ritual would for anything short of clearly high-stakes work. What has to actually show up is the substance: the persistence plan if there's a multi-session shape, a reachable escalation path if the work is unattended, the guardrail stated out loud if the work is risky — and the user needs an obvious opening to redirect it. One way this might read: *"this spans multiple sessions but doesn't need to run unattended, and the steps aren't fully knowable yet — I'd set it up as X, with Y for persistence. Sound right, or do you want it handled differently?"* — but plain clarifying questions that happen to cover the same ground work just as well.
 
 ## For research, evaluation, or open-ended tasks
 
