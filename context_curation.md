@@ -120,9 +120,11 @@ Default: one agent holds the goal and *is* the orchestrator. Delegate to subagen
 
 **Where progress lives vs. where the goal lives**
 
-The goal itself stays in context — it's small, and an agent that can't recall its own goal can't steer a conversation. What *doesn't* fit in context over a long task is the accumulated progress toward that goal. That gets externalized to a persisted note/progress file the agent rereads — structured note-taking, per [Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents), which treats this and Anthropic's file-based memory tool as the same lightweight technique.
+The goal itself stays in context — it's small, and an agent that can't recall its own goal can't steer a conversation. What *doesn't* fit in context over a long task is the accumulated progress toward that goal. That gets externalized to a persisted note/progress file the agent rereads — structured note-taking, the simplest pattern described in [Effective context engineering for AI agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents): the agent just writes progress to a file and rereads it, no platform machinery involved.
 
-*Our own addition, not from that source:* don't reach for a heavier memory-as-database system by default. A progress file is the right weight for "don't lose the thread"; a database is solving a different problem — knowledge meant to outlive any single task, which is a separate design decision from progress-tracking.
+That source also introduces Anthropic's file-based memory tool — but as a step up from note-taking, not an equivalent to it: a more formal capability for building knowledge bases and maintaining state *across sessions and projects*, not just within one long task. For this section's specific need — don't lose the thread of the task at hand — a plain progress file is already the right weight; reaching for the memory tool here would be solving a text file's problem with a database's tool.
+
+*Our own addition, not from that source:* the memory tool is the right reach when the goal actually is cross-task knowledge meant to outlive this one run (house style rules, a schema map that's still useful next week) — a genuinely different problem from progress-tracking. A hand-built database is heavier still, worth it only when even the memory tool's structure doesn't fit (relational queries, integration outside Anthropic's own tooling). Don't skip straight to either by default when a progress file already solves the problem actually in front of you.
 
 **Identifying the main agent**
 
