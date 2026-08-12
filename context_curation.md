@@ -88,6 +88,8 @@ Before any execution prompt gets written, the agent runs a short triage against 
 
 A large task can nest more than one of these — e.g. an orchestrator delegates to a worker that runs an evaluator-optimizer loop, one step of which is itself a short chain. Pick the pattern governing the top-level split first; let the rest show up as sub-structure one level down rather than forcing one pattern to cover the whole task.
 
+**Check reversibility before committing to a looping pattern.** Evaluator-optimizer and voting both carry a hidden assumption: that repeating the attempt is cheap and safe — generate, check, retry. That holds when what's being looped is generation or verification (a draft, a query, a dry run). It breaks the moment a "loop" would mean re-attempting something with real, irreversible side effects (§0's Reversibility axis, in the table above) — you can't retry a phase that already moved money the way you retry a draft that missed the bar. When a pattern implies iteration, check what's actually inside the loop: reversible or contained → the pattern applies as described; not reversible → move the loop boundary earlier, so the iteration happens on a check *before* the irreversible step, never through it.
+
 The output is a stated recommendation, e.g.: *"This spans multiple sessions but doesn't need to run unattended, and the steps aren't fully knowable yet — I'd suggest a single persistent agent identity that reloads a progress file each time, with a subagent spun off only for the research-heavy part. Want me to set it up that way, or do you want tighter checkpoints given the stakes?"*
 
 Three of the axes feed forward into later sections — but as distinct inputs answering distinct questions, not one dial wearing different hats:
