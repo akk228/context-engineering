@@ -211,6 +211,7 @@ These answer different questions ("should I stop and ask" vs. "how do I reach so
 -   Agent wants to reconsider its approach (arguably a form of impasse).
 -   An instruction turns out to be ambiguous or doesn't fit what the agent is observing (the runtime half of §2's "amendment" question).
 -   An instruction conflicts with a known guardrail (§4's disclosure principle) — surfaced as a statement, not necessarily a blocking question, but the same "don't absorb it silently" instinct applies.
+-   A live signal indicates continuing is actively harmful, not just incomplete (§6's abort-trigger case) — stop immediately rather than iterating further, and prefer the lower-friction rollback path (§4's directionality guidance, §7's fallback) over pushing forward.
 
 **Escalation across time gaps** — for genuinely unattended, multi-day work, a second agent tier does *not* solve escalation by itself. What's actually needed is an out-of-band wake mechanism (a scheduled check, a push notification) independent of how many agent tiers exist. This skill doesn't invent that mechanism — it identifies *that* one is needed during §0 intake and uses whatever the operating environment already provides for it (a scheduling primitive, a notification channel); if the environment has nothing like that, unattended execution isn't actually available and the architecture choice reverts to a synchronous, attended one. Don't conflate "we split the architecture" with "we solved escalation" — they're separate problems.
 
@@ -219,6 +220,8 @@ These answer different questions ("should I stop and ask" vs. "how do I reach so
 The agent must know what to do when it hits an error — a failed command, a tool without access, and so on.
 
 **Is a wrong output an error?** No — a result that doesn't hit the desired outcome is not a tooling/execution error, it's just the task not yet done. It's handled by the verification loop (§8), not by error-handling logic. Error handling is for *execution* failures (crashed command, denied permission); verification is for *result-quality* failures.
+
+**Is a live warning signal — a monitoring alert mid-task — one of these two?** No, and this is a real third category, not a variant of the other two. Both execution errors and verification gaps assume it's still safe to keep working (retry the command; keep iterating toward passing). An **abort trigger** — a real-time signal that continuing is actively harmful, not just incomplete or blocked — means the opposite: stop immediately and escalate (§5) rather than retrying or iterating further. This case is easy to miss if the mental model behind this section is generate-then-check (code, tests), but it's a live risk for the operational, multi-day tasks this doc is meant to cover.
 
 ### 7. Fallback mechanisms
 
