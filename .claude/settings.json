@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git commit -m ' *)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:cognition.ai)",
+      "WebFetch(domain:cognition.com)",
+      "Edit(/.claude/skills/engineering-context/**)",
+      "Bash(awk '/^description:/{print length\\($0\\)-13}' .claude/skills/engineering-context/SKILL.md)",
+      "Skill(update-config)",
+      "Skill(update-config:*)"
+    ]
+  }
+}
