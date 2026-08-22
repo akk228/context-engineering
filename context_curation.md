@@ -2,14 +2,14 @@
 
 ## Goal
 
-The result of this work is meant to help to curate better prompts that are aimed to be put together as a skill for Automated Prompt Optimization.
+The result of this work is meant to help to curate better prompts that are aimed to be put together as a skill for prompt creataion.
 
 The result is meant to be a skill that helps an engineer work together with an agent to create a better initial prompt and guide the engineer through a process of complex task execution.
 
 **Problem statement**
 
--   Create a workflow that achieves the best results based on specific initial requirements.
--   Create a workflow that overcomes various agent constraints and flaws, such as:
+-   Create an initial prompt that establishes task execution workflow achieveing the best results based on specific initial requirements.
+-   The prompt must help to overcome various agent constraints and flaws, such as:
     *   Finite context window
     *   Context pollution
     *   False/unnecessary context propagation
