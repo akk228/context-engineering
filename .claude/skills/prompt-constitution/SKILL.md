@@ -42,7 +42,7 @@ Don't hand off a brief that's only been sanity-checked by the same capable agent
 1. Adapt one short scenario from the task at hand (or draw on the pattern in `reference.md`'s eval-methodology section).
 2. Run it against a real stand-in for the target executor — the cheapest/most literal model available (e.g. spawn an `Agent` with `model: "haiku"`), or the strongest model available under an explicit low-initiative persona if no weaker model is accessible, given only the drafted brief as its instructions — not this conversation's context.
 3. Read the transcript for exactly the gaps the brief was designed to close: did it ask before doing the risky thing, did it stop at the stated escalation trigger, did it use the verification method specified rather than just asserting done.
-4. Feed observed gaps back into the draft. This is the same evaluation-driven-iteration principle `context_curation.md` §2 already commits to — build the eval before trusting the document, not after.
+4. Feed observed gaps back into the draft. Build the eval before trusting the document, not after — a brief that only reads well to the agent that wrote it hasn't actually been checked against the thing it needs to survive.
 
 ## Deeper guidance
 
