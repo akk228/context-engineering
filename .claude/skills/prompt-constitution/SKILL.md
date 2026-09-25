@@ -20,6 +20,7 @@ Gather two things before drafting anything:
    - Can it use tools, and which ones — or is it text-in/text-out only?
    - Can it reach a human mid-task if it gets stuck, or is it fire-and-forget once launched?
    - What failure modes are known or suspected — weak instruction-following, confident hallucination, poor self-assessment, no initiative to ask questions, no initiative to stop?
+   - Can it spawn subagents — and if so, is the spawn limit (how many, how deep) enforced by the harness, or only by whatever the prompt asks? Is this one model end to end, or a lead plus workers on different models (e.g. a strong lead fanning out to cheap workers)? Profile each role separately if they differ.
 
 If the user doesn't know some of these, default to the weakest reasonable assumption for the unknowns (no reliable self-assessment, no mid-task human access, easily drifts off narrow instructions) rather than assuming competence you haven't confirmed. See `reference.md`'s capability-profile table for how each answer shifts the sections below.
 
@@ -29,11 +30,15 @@ State the profile back before drafting: *"Sounds like this is headed to \[X], wh
 
 Run the six-pattern triage in `reference.md`, weighted by the executor profile, not just the task shape: patterns that need the executor to *synthesize* well under ambiguity — orchestrator-workers, open-ended loop — assume a competence the profile may not support. When the executor is weak, prefer collapsing toward chaining, routing, or a tight evaluator-optimizer loop with an external (tool-checkable, not self-assessed) pass/fail bar, even where a capable agent might otherwise reach for something more autonomous. State this trade explicitly to the user if it means giving up flexibility the task would otherwise want.
 
+Before settling on anything multi-agent (parallelization beyond trivial fact-finding, or orchestrator-workers), apply the gate in `reference.md`'s "Multi-agent designs" section: the work has to split into genuinely independent threads, the task's value has to justify roughly an order of magnitude more tokens, and agents mustn't need to share context or make interdependent writes (most coding fails this — keep writes single-threaded). If it passes, one rule dominates: **a weak executor is a worker, never the lead.** If the only available lead would be weak, do the decomposition yourself, now — turn orchestrator-workers into fixed-brief sectioning, with the fan-out and reconciliation driven by the user or by deterministic code — and hand the weak model only worker briefs.
+
 ## Step 3 — Draft the document
 
 Use `template.md` as the skeleton and `reference.md`'s section-by-section guidance to instantiate each part *concretely* — no heuristic left for the executor to interpret if the profile says it can't be trusted to interpret it well. The general shift, across every section, is the same: the weaker the executor, the more each judgment call gets made now, in writing, instead of delegated to the executor's own discretion at runtime.
 
 Write the draft to a file the user can hand off wholesale — it has to stand alone with no access to this conversation.
+
+For a multi-agent design, write one document per role: a lead constitution (including the §0a delegation section) plus one worker brief per distinct worker type. Each worker brief has to stand alone the same way — a worker sees neither this conversation nor the lead's document, so the goal, the shared spec, and the return contract are restated in it, not referenced.
 
 ## Step 4 — Eval the brief against a stand-in
 
@@ -42,8 +47,9 @@ Don't hand off a brief that's only been sanity-checked by the same capable agent
 1. Adapt one short scenario from the task at hand (or draw on the pattern in `reference.md`'s eval-methodology section).
 2. Run it against a real stand-in for the target executor — the cheapest/most literal model available (e.g. spawn an `Agent` with `model: "haiku"`), or the strongest model available under an explicit low-initiative persona if no weaker model is accessible, given only the drafted brief as its instructions — not this conversation's context.
 3. Read the transcript for exactly the gaps the brief was designed to close: did it ask before doing the risky thing, did it stop at the stated escalation trigger, did it use the verification method specified rather than just asserting done.
-4. Feed observed gaps back into the draft. Build the eval before trusting the document, not after — a brief that only reads well to the agent that wrote it hasn't actually been checked against the thing it needs to survive.
+4. For a multi-agent design, eval the seams, not just each document: run a worker stand-in on its brief alone and check it respects the output format, return budget, and file-handoff path; if the lead is itself a delegated executor, run a lead stand-in and check it scales effort per the table instead of over-spawning, passes the shared spec to every worker, runs the reconciliation step, and spot-checks worker returns rather than forwarding them on trust.
+5. Feed observed gaps back into the draft. Build the eval before trusting the document, not after — a brief that only reads well to the agent that wrote it hasn't actually been checked against the thing it needs to survive.
 
 ## Deeper guidance
 
-See `reference.md` for: the capability-profile table (how each executor signal shifts freedom/guardrails/escalation/verification), the six-pattern architecture picker, section-by-section instantiation guidance for the document, and the eval-methodology detail. See `template.md` for the blank document skeleton.
+See `reference.md` for: the capability-profile table (how each executor signal shifts freedom/guardrails/escalation/verification), the six-pattern architecture picker, the multi-agent gate and delegation guidance, section-by-section instantiation guidance for the document, and the eval-methodology detail. See `template.md` for the blank document skeleton.
