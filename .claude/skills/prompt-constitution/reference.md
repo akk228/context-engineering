@@ -6,6 +6,7 @@ Full detail behind the SKILL.md summary. Read the section you need.
 
 - Capability-profile table
 - Picking the specific architecture pattern
+- Multi-agent designs
 - Section-by-section instantiation guidance
 - Eval methodology
 
@@ -21,6 +22,7 @@ Each signal from Step 1 shifts how concretely the document has to spell things o
 | Mid-task human access | Can pause and ask | Fire-and-forget once launched | §5 escalation can't assume synchronous delivery — needs a literal stop condition and an explicit "do nothing further, output X" instruction, not "ask the user" |
 | Self-assessment reliability | Honestly reports uncertainty/failure | Reports confident completion regardless of actual state | §8 must not rely on self-report at all; prefer checklists the executor fills in with specific evidence per item, not a bare "done" |
 | Initiative | Notices when something's off and raises it | Only acts on what's explicitly stated | §6 error handling and §5 escalation triggers must be enumerated explicitly — "notice an impasse and escalate" isn't reliable, list the concrete conditions |
+| Delegation / synthesis | Can decompose on the fly, write precise worker briefs, and reconcile what comes back | Can execute a scoped brief but can't reliably plan, brief others, or merge conflicting results | Decides whether this executor may be a lead at all (§0a). Weak end → worker only; the author pre-writes every worker brief and the fan-out / reconciliation moves to deterministic code or the human |
 
 A profile is a bundle of these, not one dial — a model can have decent instruction-following but zero tool access, or vice versa. Instantiate each constitution section against the specific signals that actually bear on it, not a single aggregate "weak/strong" score.
 
@@ -42,9 +44,26 @@ A task can nest more than one pattern (an orchestrator delegating to a worker ru
 
 **Before parallelizing anything beyond pure fact-finding**: independent territory (different files, different sources) isn't the same as independent decisions. Two workers can each do their job correctly and still produce something incoherent together (mismatched style, conflicting architecture choices) if they share an implicit constraint neither one knew to coordinate on. If the executor profile can't be trusted to run its own reconciliation pass, write the shared spec directly into each worker's instructions in the document and add an explicit reconciliation step as its own line item rather than assuming it'll happen implicitly.
 
+## Multi-agent designs
+
+**Gate — check this before choosing parallelization (beyond trivial fact-finding) or orchestrator-workers.** Multi-agent pays off on breadth-first work that splits into genuinely independent threads — Anthropic's research system beat a single agent by 90% on its research eval — but at roughly 15× the tokens of a chat, and it fails on work where agents need shared context or make interdependent decisions (most coding). Go multi-agent only if all three hold: the threads are independent, the task's value justifies the cost, and writes to any shared output can stay single-threaded (one agent writes; others only read and report). Otherwise stay single-agent and use compaction plus a progress file for length.
+
+**Who leads.** The lead's job — decompose, brief, reconcile, judge returns — is the hardest synthesis work in the design. A weak executor is a worker, never the lead. If the only available lead would be weak, the authoring agent does the decomposition now, in writing: the design becomes fixed-brief sectioning, and the fan-out and reconciliation are run by deterministic code or the human operator, not by the model. A strong-lead / cheap-worker split is the good version of this.
+
+**What the documents must contain** (fills §0a in `template.md`; one lead document plus one standalone brief per worker type):
+
+- **Spawn limits enforced outside the prompt where possible.** "Workers may not spawn workers" and a max worker count belong in the harness or orchestration code if the environment allows it; a prompt rule is the fallback, and §0a should say which one applies. Early multi-agent systems spawned 50 subagents for simple queries — don't leave the count to the lead's discretion.
+- **Effort-scaling table.** Concrete buckets tied to the task's own cases, e.g. simple lookup = 1 agent / 3–10 tool calls; comparison = 2–4 workers / 10–15 calls each; complex = more workers with divided responsibilities. This is what stops both over- and under-investment.
+- **Precise worker briefs.** Each carries the overall goal (restated, not referenced), its own objective, what's out of scope (what the other workers own), exact tools/sources, the output format, and the boundaries. Vague delegation is the main cause of duplicated work and gaps.
+- **Shared spec.** Whatever the combined result's coherence depends on — style, schema, naming, definitions — copied verbatim into every worker brief. Different territory isn't the same as independent decisions (see above).
+- **Return contract: file handoff plus a budgeted summary.** Workers write full output to an exact path and return only the path plus a short summary (e.g. under 2,000 tokens) that includes the basis — what was checked, how confident. This keeps the lead's context clean and avoids information degrading as it passes through the lead.
+- **Explicit reconciliation step** as its own line item, with the exact comparison to run, before anything is merged.
+- **Checking returns.** A clean worker summary reads like a settled fact; it isn't. State exactly what the lead checks per return (open the file, re-run the check, read the cited source) and for which returns. For high-stakes pipelines, use an independent reviewer agent between steps rather than the lead grading its own workers.
+- **Blocked-worker protocol.** A fixed token the worker returns when stuck, and what the lead does on seeing it (§5) — not "use your judgment."
+
 ## Section-by-section instantiation guidance
 
-The document (`template.md`) has nine sections, §0 through §8. For each, the question isn't "what's the right policy" in the abstract — it's "how literally does this need to be spelled out given the profile."
+The document (`template.md`) has nine sections, §0 through §8, plus §0a for multi-agent designs (see "Multi-agent designs" above; delete it otherwise). For each, the question isn't "what's the right policy" in the abstract — it's "how literally does this need to be spelled out given the profile."
 
 **0. Role and architecture** — State the chosen pattern and role as a fixed fact, not a question the executor re-derives. A weak executor shouldn't be handed the six-pattern picker and asked to choose; that choice belongs in this document, made once, by the (capable) agent authoring the brief.
 
